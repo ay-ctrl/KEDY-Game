@@ -22,18 +22,21 @@ public class WireMinigame : MonoBehaviour
     public GameObject wrongFeedback;
     public GameObject successPanel;
 
-    // Ýç state
+    [Header("Canvas")]
+    public Canvas minigameCanvas;  // MinigameCanvas buraya baðla
+
     int[] correctMapping;
     int[] currentMapping;
     int selectedLeft = -1;
     LineRenderer activeLine;
     List<LineRenderer> completedLines = new List<LineRenderer>();
     Action<bool> onComplete;
-
-    bool isActive = false;
+    public bool isActive = false;
     Vector2 virtualMousePos;
 
-    
+    // Buton týklama yerine mouse hover ile seçim için
+    float clickRadius = 30f; // pixel cinsinden yakýnlýk eþiði
+
     public void StartMinigame(Action<bool> callback)
     {
         onComplete = callback;
@@ -42,7 +45,6 @@ public class WireMinigame : MonoBehaviour
         successPanel.SetActive(false);
         if (wrongFeedback) wrongFeedback.SetActive(false);
 
-        // Tüm eski line'larý temizle
         foreach (var l in completedLines)
             if (l != null) Destroy(l.gameObject);
         completedLines.Clear();
@@ -53,56 +55,90 @@ public class WireMinigame : MonoBehaviour
 
         virtualMousePos = new Vector2(Screen.width / 2f, Screen.height / 2f);
 
-
-        // YERÝNE bunlarý yaz:
-        Cursor.lockState = CursorLockMode.Confined;  // ekran dýþýna çýkmasýn
-        Cursor.visible = true;                        // görünür kalsýn
+        Cursor.lockState = CursorLockMode.None;
+        Cursor.visible = true;
 
         SetupWireUI();
     }
 
-   
     int[] GenerateRandomMapping(int count)
     {
-        List<int> available = new List<int>();
-        for (int i = 0; i < count; i++) available.Add(i);
-
-        
-        for (int i = count - 1; i > 0; i--)
-        {
-            int j = UnityEngine.Random.Range(0, i + 1);
-            (available[i], available[j]) = (available[j], available[i]);
-        }
-
-       
+        int[] map = new int[count];
         for (int i = 0; i < count; i++)
-            if (available[i] == i)
-            {
-                int swap = (i + 1) % count;
-                (available[i], available[swap]) = (available[swap], available[i]);
-            }
-
-        return available.ToArray();
+            map[i] = i;
+        return map;
     }
 
+   
     void SetupWireUI()
     {
-        // Sol noktalarý renklendir
         for (int i = 0; i < wireCount; i++)
         {
-            var img = leftPoints[i].GetComponent<Image>();
-            if (img) img.color = wireColors[i];
-        }
+            // Sol — gerçek renk
+            var imgL = leftPoints[i].GetComponent<Image>();
+            if (imgL) { Color c = wireColors[i]; c.a = 1f; imgL.color = c; }
 
-        // Sað noktalarý correctMapping'e göre renklendir
-        for (int i = 0; i < wireCount; i++)
-        {
-            var img = rightPoints[correctMapping[i]].GetComponent<Image>();
-            if (img) img.color = wireColors[i];
+            // Sað — correctMapping'e göre renk
+            var imgR = rightPoints[correctMapping[i]].GetComponent<Image>();
+            if (imgR) { Color c = wireColors[i]; c.a = 1f; imgR.color = c; }
+
+            // Sol buton üstüne "gerçek index" yaz (hangi kablo olduðu)
+            var leftTmp = leftPoints[i].GetComponentInChildren<TMPro.TextMeshProUGUI>();
+            if (leftTmp) leftTmp.text = (i + 1).ToString();
+
+            // Sað buton üstüne de numara yaz
+            var rightTmp = rightPoints[i].GetComponentInChildren<TMPro.TextMeshProUGUI>();
+            if (rightTmp) rightTmp.text = (i + 1).ToString();
         }
     }
 
- 
+    void Update()
+    {
+        if (!isActive) return;
+
+        var mouse = Mouse.current;
+        if (mouse == null) return;
+
+        Vector2 mouseScreenPos = mouse.position.ReadValue();
+
+        if (mouse.leftButton.wasPressedThisFrame)
+        {
+            // SOL NOKTALARA TIKLA
+            // i'ye týklamak için (i+1)%count butonuna basýlmasý lazým
+            for (int i = 0; i < wireCount; i++)
+            {
+                if (currentMapping[i] != -1) continue;
+
+                // i'yi seçmek için gerçekte hangi butona basýlmasý gerekiyor?
+                int requiredButton = (i + 1) % wireCount;
+                Vector2 screenPoint = RectToScreen(leftPoints[requiredButton]);
+
+                if (Vector2.Distance(mouseScreenPos, screenPoint) < clickRadius)
+                {
+                    SelectLeft(i); // aslýnda i'yi seçiyoruz
+                    return;
+                }
+            }
+
+            // SAÐ NOKTALARA TIKLA (sol seçiliyse)
+            if (selectedLeft != -1)
+            {
+                for (int i = 0; i < wireCount; i++)
+                {
+                    // i'ye baðlamak için (i+1)%count butonuna basýlmasý lazým
+                    int requiredButton = (i + 1) % wireCount;
+                    Vector2 screenPoint = RectToScreen(rightPoints[requiredButton]);
+
+                    if (Vector2.Distance(mouseScreenPos, screenPoint) < clickRadius)
+                    {
+                        TryConnect(i); // aslýnda i'ye baðlýyoruz
+                        return;
+                    }
+                }
+            }
+        }
+    }
+
     void LateUpdate()
     {
         if (!isActive || selectedLeft == -1 || activeLine == null) return;
@@ -110,30 +146,35 @@ public class WireMinigame : MonoBehaviour
         var mouse = Mouse.current;
         if (mouse == null) return;
 
-        // Delta'yý TERS uygula
-        float dx = mouse.delta.x.ReadValue();
-        float dy = mouse.delta.y.ReadValue();
-        float sens = 8f;
-
-        virtualMousePos.x -= dx * sens;   // saða gidince sola
-        virtualMousePos.y -= dy * sens;   // yukarý gidince aþaðý
+        // Ters mouse: delta'yý ters uygula
+        Vector2 currentMousePos = mouse.position.ReadValue();
+        Vector2 delta = currentMousePos - virtualMousePos;
+        virtualMousePos = virtualMousePos - delta * 0.5f;
         virtualMousePos.x = Mathf.Clamp(virtualMousePos.x, 0, Screen.width);
         virtualMousePos.y = Mathf.Clamp(virtualMousePos.y, 0, Screen.height);
 
-        
         Vector3 worldPos = Camera.main.ScreenToWorldPoint(
             new Vector3(virtualMousePos.x, virtualMousePos.y, 10f));
         worldPos.z = 0f;
         activeLine.SetPosition(1, worldPos);
     }
 
-    
-    public void OnLeftPointClicked(int index)
+    // RectTransform'un ekran pozisyonunu al
+    Vector2 RectToScreen(RectTransform rect)
     {
-        if (!isActive) return;
-        if (currentMapping[index] != -1) return; // zaten baðlý
+        Vector3[] corners = new Vector3[4];
+        rect.GetWorldCorners(corners);
+        // Köþelerin ortasý
+        Vector3 center = (corners[0] + corners[2]) / 2f;
 
-        // Önceki seçimi iptal et
+        if (minigameCanvas != null && minigameCanvas.renderMode != RenderMode.ScreenSpaceOverlay)
+            return Camera.main.WorldToScreenPoint(center);
+
+        return new Vector2(center.x, center.y);
+    }
+
+    void SelectLeft(int index)
+    {
         if (activeLine != null)
         {
             Destroy(activeLine.gameObject);
@@ -143,26 +184,27 @@ public class WireMinigame : MonoBehaviour
         selectedLeft = index;
         activeLine = CreateLine(wireColors[index]);
 
-        Vector3 start = leftPoints[index].position;
+        Vector3 start = Camera.main.ScreenToWorldPoint(
+            new Vector3(RectToScreen(leftPoints[index]).x,
+                        RectToScreen(leftPoints[index]).y, 10f));
         start.z = 0f;
         activeLine.SetPosition(0, start);
         activeLine.SetPosition(1, start);
 
-        virtualMousePos = new Vector2(Screen.width / 2f, Screen.height / 2f);
+        virtualMousePos = Mouse.current.position.ReadValue();
     }
 
-    public void OnRightPointClicked(int rightIndex)
+    void TryConnect(int rightIndex)
     {
-        if (!isActive || selectedLeft == -1) return;
-
         bool correct = (correctMapping[selectedLeft] == rightIndex);
 
         if (correct)
         {
             currentMapping[selectedLeft] = rightIndex;
 
-            // Line'ý sað noktaya sabitle
-            Vector3 end = rightPoints[rightIndex].position;
+            Vector3 end = Camera.main.ScreenToWorldPoint(
+                new Vector3(RectToScreen(rightPoints[rightIndex]).x,
+                            RectToScreen(rightPoints[rightIndex]).y, 10f));
             end.z = 0f;
             activeLine.SetPosition(1, end);
             completedLines.Add(activeLine);
@@ -181,7 +223,6 @@ public class WireMinigame : MonoBehaviour
         }
     }
 
-   
     IEnumerator ShowWrongFeedback()
     {
         if (wrongFeedback)
@@ -196,7 +237,6 @@ public class WireMinigame : MonoBehaviour
     {
         for (int i = 0; i < wireCount; i++)
             if (currentMapping[i] == -1) return;
-
         StartCoroutine(CompleteMinigame());
     }
 
@@ -211,7 +251,6 @@ public class WireMinigame : MonoBehaviour
         onComplete?.Invoke(true);
     }
 
-    
     LineRenderer CreateLine(Color color)
     {
         GameObject go = new GameObject("WireLine");

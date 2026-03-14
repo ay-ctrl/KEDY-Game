@@ -25,6 +25,8 @@ public class WireMinigame : MonoBehaviour
     [Header("Canvas")]
     public Canvas minigameCanvas;
 
+    public ExitDoor exitDoor; // sahnede ExitDoor'u inspector'dan baðla
+
     int[] correctMapping;
     int[] currentMapping;
     int selectedLeft = -1;
@@ -247,6 +249,7 @@ public class WireMinigame : MonoBehaviour
             if (currentStep >= solutionOrder.Length)
             {
                 LuckBarManager.Instance.ModifyLuck(+10f);
+                exitDoor.UnlockDoor();
                 StartCoroutine(CompleteMinigame());
             }
         }

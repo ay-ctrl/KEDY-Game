@@ -13,7 +13,9 @@ public class SceneTransitionManager : MonoBehaviour
     {
         if (Instance == null) { Instance = this; DontDestroyOnLoad(gameObject); }
         else Destroy(gameObject);
+        DontDestroyOnLoad(fadeCanvasGroup);
     }
+
 
     public void LoadScene(string sceneName)
     {

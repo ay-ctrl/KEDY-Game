@@ -13,7 +13,15 @@ public class NextScene : MonoBehaviour
     public void StartButton()
     {
         elevatorAnimator.SetTrigger("openelevator");
-        playButton.SetActive(false);
         Invoke("LoadNextScene", 2f); // 2 saniye sonra çalýþýr
+    }
+
+    public void ExitGame()
+    {
+        #if UNITY_EDITOR
+                UnityEditor.EditorApplication.isPlaying = false; // Editörde çalýþýyorsa durdurur
+        #else
+                Application.Quit(); // Build edilmiþ oyunda çýkýþ yapar
+        #endif
     }
 }

@@ -9,6 +9,9 @@ EditorBuildSettings:
     path: Assets/Scenes/Menu.unity
     guid: 8c9cfa26abfee488c85f1582747f6a02
   - enabled: 1
+    path: Assets/Scenes/ElevatorRoom.unity
+    guid: a1184e7ef937f624eb49d7d5a70b8dde
+  - enabled: 1
     path: Assets/Scenes/Gameplay.unity
     guid: ff316673c58d4ce4f9cb59563dcc80a6
   m_configObjects:

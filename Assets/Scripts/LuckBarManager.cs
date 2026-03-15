@@ -1,4 +1,3 @@
-// LuckBarManager.cs
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -11,11 +10,13 @@ public class LuckBarManager : MonoBehaviour
     public float maxLuck = 100f;
     public float minLuck = 0f;
 
-    [Header("UI")]
-    public Slider luckSlider;
-    public Image fillImage;
-    public Color lowLuckColor = Color.red;
-    public Color highLuckColor = Color.green;
+    Slider luckSlider;
+    Image fillImage;
+
+    private void Start()
+    {
+        UpdateUI();
+    }
 
     void Awake()
     {
@@ -24,16 +25,16 @@ public class LuckBarManager : MonoBehaviour
             Instance = this;
             DontDestroyOnLoad(gameObject);
         }
-        else Destroy(gameObject);
+        else
+        {
+            Destroy(gameObject);
+        }
     }
-
-    void Start() => UpdateUI();
 
     public void ModifyLuck(float amount)
     {
         currentLuck = Mathf.Clamp(currentLuck + amount, minLuck, maxLuck);
         UpdateUI();
-        Debug.Log($"Luck: {currentLuck} ({(amount >= 0 ? "+" : "")}{amount})");
     }
 
     void UpdateUI()
@@ -41,8 +42,9 @@ public class LuckBarManager : MonoBehaviour
         if (luckSlider != null)
         {
             luckSlider.value = currentLuck / maxLuck;
+
             if (fillImage != null)
-                fillImage.color = Color.Lerp(lowLuckColor, highLuckColor, currentLuck / maxLuck);
+                fillImage.color = Color.Lerp(Color.red, Color.green, currentLuck / maxLuck);
         }
     }
 }

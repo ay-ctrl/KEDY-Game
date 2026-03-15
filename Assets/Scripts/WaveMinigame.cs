@@ -9,47 +9,53 @@ public class WaveMinigame : MonoBehaviour
     public GameObject minigamePanel;
 
     [Header("Wave UI")]
-    public RectTransform[] waveLines;      // 4 adet RectTransform — her dalga bir line
-      // 4 adet hedef (düz çizgi pozisyonu)
-    public Scrollbar tunerKnob;            // düðme (scrollbar olarak)
+    public RectTransform[] waveLines;   // 4 adet
+    public Image[] waveHighlights;      
+    public Scrollbar tunerKnob;
 
     [Header("Timer")]
-    public Image timerBar;                 // süre dolunca kýrmýzýya döner
-    public float maxTime = 15f;
+    public Image timerBar;
+    public float maxTime = 20f;
 
     [Header("Feedback")]
     public TextMeshProUGUI feedbackText;
     public TextMeshProUGUI timerText;
+    public TextMeshProUGUI waveIndexText; 
     public GameObject successPanel;
-    public GameObject roomDarkOverlay;     // karanlýk overlay — tamamlanýnca kapanýr
+    public GameObject roomDarkOverlay;
 
     [Header("Luck")]
-    public float fastBonus = -5f;   // çok hýzlý bitirince þans azalýr
-    public float normalBonus = +15f;  // normal sürede þans artar
-    public float fastThreshold = 4f;  // kaç saniyede bitirirse "hýzlý" sayýlýr
+    public float fastBonus = -5f;
+    public float normalBonus = +15f;
+    public float fastThreshold = 6f;
+
+    [Header("Zorluk")]
+    public float solveThreshold = 0.008f;  // her dalga için eþik
 
     // Ýç state
-    float[] waveOffsets;       // her dalganýn rastgele Y offset'i
-    float[] waveAmplitudes;    // her dalganýn genliði
-    float[] waveSpeeds;        // her dalganýn akýþ hýzý
+    int currentWaveIndex = 0;  
+    float[] waveOffsets;
+    float[] waveAmplitudes;
+    float[] waveSpeeds;
+    float[] waveTargetKnob;       // her dalganýn hedef knob deðeri
+
     float currentTime = 0f;
     bool isActive = false;
-    bool isSolved = false;
-    float knobValue = 0f;   // 0..1 arasý
-    float solveThreshold = 0.05f; // ne kadar yakýn olursa "düzleþti" sayýlýr
+    bool isFinishing = false;
+    float knobValue = 0f;
+
+    float[] baseY = { 80f, 27f, -27f, -80f };
 
     System.Action<bool> onComplete;
 
-    // Her dalganýn "hedef" knob deðeri — hepsi 0.5'te düz
-    float targetKnobValue = 0.5f;
-
-    // ????????????????????????????????????????
+    
     public void StartMinigame(System.Action<bool> callback)
     {
         onComplete = callback;
         isActive = true;
-        isSolved = false;
+        isFinishing = false;
         currentTime = 0f;
+        currentWaveIndex = 0;
 
         minigamePanel.SetActive(true);
         successPanel.SetActive(false);
@@ -58,76 +64,181 @@ public class WaveMinigame : MonoBehaviour
         Cursor.lockState = CursorLockMode.None;
         Cursor.visible = true;
 
-        // Rastgele dalga parametreleri oluþtur
+        // Dalga parametrelerini oluþtur
         waveOffsets = new float[4];
         waveAmplitudes = new float[4];
         waveSpeeds = new float[4];
+        waveTargetKnob = new float[4];
 
+        waveOffsets[0] = Random.Range(-80f, 80f);
+        waveAmplitudes[0] = Random.Range(50f, 80f);
+        waveSpeeds[0] = Random.Range(2f, 4f);
+
+        waveOffsets[1] = Random.Range(-80f, 80f);
+        waveAmplitudes[1] = Random.Range(30f, 60f);
+        waveSpeeds[1] = Random.Range(0.5f, 1.5f);
+
+        waveOffsets[2] = Random.Range(-80f, 80f);
+        waveAmplitudes[2] = Random.Range(60f, 100f);
+        waveSpeeds[2] = Random.Range(3f, 5f);
+
+        waveOffsets[3] = Random.Range(-80f, 80f);
+        waveAmplitudes[3] = Random.Range(40f, 70f);
+        waveSpeeds[3] = Random.Range(1f, 3f);
+
+        
         for (int i = 0; i < 4; i++)
-        {
-            waveOffsets[i] = Random.Range(-40f, 40f);
-            waveAmplitudes[i] = Random.Range(20f, 50f);
-            waveSpeeds[i] = Random.Range(0.5f, 2f);
-        }
+            waveTargetKnob[i] = Random.Range(0.3f, 0.7f);
 
-        // Knob'u ortaya al
-        tunerKnob.value = 0.5f;
-        knobValue = 0.5f;
+       
+        SetKnobFarFrom(waveTargetKnob[0]);
+
+        UpdateWaveVisuals();
+        UpdateWaveIndexText();
 
         StartCoroutine(RunMinigame());
     }
 
-    // ????????????????????????????????????????
+   
     IEnumerator RunMinigame()
     {
-        while (isActive && !isSolved)
+        while (isActive)
         {
             currentTime += Time.deltaTime;
             UpdateTimerUI();
             UpdateWaves();
-            CheckSolved();
+            CheckCurrentWaveSolved();
             yield return null;
         }
     }
 
-    // ????????????????????????????????????????
+    
     void Update()
     {
         if (!isActive) return;
         knobValue = tunerKnob.value;
     }
 
-    // ????????????????????????????????????????
+    
     void UpdateWaves()
     {
-        // knob 0.5'e ne kadar yakýnsa dalgalar o kadar düzleþir
-        float flatness = 1f - Mathf.Abs(knobValue - targetKnobValue) / 0.5f;
-        flatness = Mathf.Clamp01(flatness);
+        if (waveLines == null) return;
 
         for (int i = 0; i < waveLines.Length; i++)
         {
-            float wave = Mathf.Sin(
-                (Time.time * waveSpeeds[i]) + waveOffsets[i]
-            ) * waveAmplitudes[i] * (1f - flatness);
+            if (waveLines[i] == null) continue;
 
             Vector2 pos = waveLines[i].anchoredPosition;
-            pos.y = wave;
+
+            if (i < currentWaveIndex)
+            {
+                
+                pos.y = baseY[i];
+            }
+            else if (i == currentWaveIndex)
+            {
+                
+                float distanceFromTarget = Mathf.Abs(knobValue - waveTargetKnob[i]);
+                float flatness = 1f - Mathf.Clamp01(distanceFromTarget / 0.5f);
+
+                float wave1 = Mathf.Sin((Time.time * waveSpeeds[i]) + waveOffsets[i])
+                              * waveAmplitudes[i];
+                float wave2 = Mathf.Sin((Time.time * waveSpeeds[i] * 2.3f) + waveOffsets[i] * 1.7f)
+                              * (waveAmplitudes[i] * 0.4f);
+
+                float totalWave = (wave1 + wave2) * (1f - flatness);
+                pos.y = baseY[i] + totalWave;
+            }
+            else
+            {
+                
+                float wave1 = Mathf.Sin((Time.time * waveSpeeds[i]) + waveOffsets[i])
+                              * waveAmplitudes[i];
+                float wave2 = Mathf.Sin((Time.time * waveSpeeds[i] * 2.3f) + waveOffsets[i] * 1.7f)
+                              * (waveAmplitudes[i] * 0.4f);
+                pos.y = baseY[i] + (wave1 + wave2);
+            }
+
             waveLines[i].anchoredPosition = pos;
         }
     }
 
-    // ????????????????????????????????????????
-    void CheckSolved()
+    
+    void CheckCurrentWaveSolved()
     {
-        float diff = Mathf.Abs(knobValue - targetKnobValue);
+        if (isFinishing) return;
+
+        float diff = Mathf.Abs(knobValue - waveTargetKnob[currentWaveIndex]);
         if (diff <= solveThreshold)
         {
-            isSolved = true;
-            StartCoroutine(FinishMinigame());
+            StartCoroutine(WaveSolved());
         }
     }
 
-    // ????????????????????????????????????????
+    
+    IEnumerator WaveSolved()
+    {
+        isFinishing = true;
+
+        // Dalga düz kalsýn
+        Vector2 pos = waveLines[currentWaveIndex].anchoredPosition;
+        pos.y = baseY[currentWaveIndex];
+        waveLines[currentWaveIndex].anchoredPosition = pos;
+
+        yield return StartCoroutine(ShowFeedback(
+            $"WAVE {currentWaveIndex + 1} STABILIZED!", Color.green, 0.8f));
+
+        currentWaveIndex++;
+
+        if (currentWaveIndex >= 4)
+        {
+            // Tüm dalgalar bitti
+            StartCoroutine(FinishMinigame());
+        }
+        else
+        {
+            
+            SetKnobFarFrom(waveTargetKnob[currentWaveIndex]);
+            UpdateWaveIndexText();
+            isFinishing = false;
+        }
+    }
+
+    void UpdateWaveVisuals()
+    {
+        
+        if (waveHighlights == null) return;
+        for (int i = 0; i < waveHighlights.Length; i++)
+        {
+            if (waveHighlights[i] == null) continue;
+            waveHighlights[i].color = (i == currentWaveIndex)
+                ? new Color(1f, 1f, 0f, 0.3f)   
+                : new Color(1f, 1f, 1f, 0f);    
+        }
+    }
+
+    void UpdateWaveIndexText()
+    {
+        if (waveIndexText != null)
+            waveIndexText.text = $"WAVE {currentWaveIndex + 1} / 4";
+        UpdateWaveVisuals();
+    }
+
+    
+    void SetKnobFarFrom(float target)
+    {
+        // Hedefin karþý tarafýndan baþlat
+        float start;
+        if (target > 0.5f)
+            start = Random.Range(0f, 0.15f);     // hedef saðdaysa soldan baþla
+        else
+            start = Random.Range(0.85f, 1f);     // hedef soldaysa saðdan baþla
+
+        tunerKnob.value = start;
+        knobValue = start;
+    }
+
+    
     void UpdateTimerUI()
     {
         float ratio = 1f - (currentTime / maxTime);
@@ -142,48 +253,91 @@ public class WaveMinigame : MonoBehaviour
         if (timerText != null)
             timerText.text = $"{Mathf.Max(0, maxTime - currentTime):F1}s";
 
-        // Süre doldu
-        if (currentTime >= maxTime && !isSolved)
+        if (currentTime >= maxTime && !isFinishing)
         {
             isActive = false;
+            isFinishing = true;
             StartCoroutine(TimeOutFail());
         }
     }
 
-    // ????????????????????????????????????????
+    
     IEnumerator TimeOutFail()
     {
-        LuckBarManager.Instance.ModifyLuck(-15f);
+        if (LuckBarManager.Instance != null)
+            LuckBarManager.Instance.ModifyLuck(-15f);
+
         yield return StartCoroutine(ShowFeedback("TIME OUT!", Color.red, 1f));
-        // Sýfýrla ve tekrar baþlat
+
+        // Sýfýrla
         currentTime = 0f;
+        currentWaveIndex = 0;
+        isFinishing = false;
         isActive = true;
-        isSolved = false;
-        tunerKnob.value = Random.Range(0f, 1f); // knob'u karýþtýr
+
+        for (int i = 0; i < 4; i++)
+            waveTargetKnob[i] = Random.Range(0.3f, 0.7f);
+
+        SetKnobFarFrom(waveTargetKnob[0]);
+        UpdateWaveIndexText();
+
         StartCoroutine(RunMinigame());
     }
 
-    // ????????????????????????????????????????
     IEnumerator FinishMinigame()
     {
         isActive = false;
 
-        if (currentTime <= fastThreshold)
+        if (LuckBarManager.Instance != null)
         {
-            LuckBarManager.Instance.ModifyLuck(fastBonus);
-            yield return StartCoroutine(ShowFeedback("TOO FAST! LUCK DECREASED!", Color.red, 1.5f));
-        }
-        else
-        {
-            LuckBarManager.Instance.ModifyLuck(normalBonus);
-            yield return StartCoroutine(ShowFeedback("SIGNAL STABILIZED!", Color.green, 1f));
+            // Kalan süre = maxTime - currentTime
+            float timeLeft = maxTime - currentTime;
+            float luckChange;
+            string msg;
+            Color msgColor;
+
+            if (timeLeft > 10f)
+            {
+                // 10sn+ kala bitirdi — çok erken, ceza
+                luckChange = -20f;
+                msg = "TOO EARLY! -20 LUCK!";
+                msgColor = Color.red;
+            }
+            else if (timeLeft > 7f)
+            {
+                // 7-10sn kala — erken, küçük ceza
+                luckChange = -10f;
+                msg = "A BIT EARLY! -10 LUCK!";
+                msgColor = new Color(1f, 0.5f, 0f);
+            }
+            else if (timeLeft > 4f)
+            {
+                // 4-7sn kala — iyi
+                luckChange = +10f;
+                msg = "GOOD TIMING! +10 LUCK!";
+                msgColor = Color.yellow;
+            }
+            else if (timeLeft > 1f)
+            {
+                // 1-4sn kala — mükemmel
+                luckChange = +20f;
+                msg = "PERFECT TIMING! +20 LUCK!";
+                msgColor = Color.green;
+            }
+            else
+            {
+                // Son 1sn — tam gaz
+                luckChange = +30f;
+                msg = "LAST SECOND! +30 LUCK!";
+                msgColor = Color.cyan;
+            }
+
+            yield return StartCoroutine(ShowFeedback(msg, msgColor, 1.5f));
+            LuckBarManager.Instance.ModifyLuck(luckChange);
         }
 
-        // Null kontrolü ekle
         if (roomDarkOverlay != null)
             yield return StartCoroutine(FadeOutOverlay());
-        else
-            Debug.LogWarning("roomDarkOverlay baðlý deðil! Inspector'dan baðla.");
 
         if (successPanel != null)
             successPanel.SetActive(true);
@@ -195,11 +349,10 @@ public class WaveMinigame : MonoBehaviour
 
         onComplete?.Invoke(true);
     }
+
     IEnumerator FadeOutOverlay()
     {
-        // SpriteRenderer ile fade
         SpriteRenderer sr = roomDarkOverlay.GetComponent<SpriteRenderer>();
-
         if (sr != null)
         {
             Color c = sr.color;
@@ -210,17 +363,15 @@ public class WaveMinigame : MonoBehaviour
                 yield return null;
             }
         }
-
         roomDarkOverlay.SetActive(false);
 
-        // Mask'leri de kaldýr (artýk gerek yok)
         GameObject playerMask = GameObject.Find("PlayerLightMask");
         GameObject pcMask = GameObject.Find("PCLightMask");
         if (playerMask) playerMask.SetActive(false);
         if (pcMask) pcMask.SetActive(false);
     }
 
-    // ????????????????????????????????????????
+   
     IEnumerator ShowFeedback(string msg, Color color, float duration)
     {
         feedbackText.text = msg;

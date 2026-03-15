@@ -1,5 +1,6 @@
 using UnityEngine;
 using UnityEngine.UI;
+using UnityEngine.SceneManagement;
 
 public class LuckBarManager : MonoBehaviour
 {
@@ -13,22 +14,33 @@ public class LuckBarManager : MonoBehaviour
     Slider luckSlider;
     Image fillImage;
 
-    private void Start()
-    {
-        UpdateUI();
-    }
-
     void Awake()
     {
         if (Instance == null)
         {
             Instance = this;
             DontDestroyOnLoad(gameObject);
+
+            SceneManager.sceneLoaded += OnSceneLoaded;
         }
         else
         {
             Destroy(gameObject);
         }
+    }
+
+    void OnSceneLoaded(Scene scene, LoadSceneMode mode)
+    {
+        FindUI();
+        UpdateUI();
+    }
+
+    void FindUI()
+    {
+        luckSlider = FindFirstObjectByType<Slider>();
+
+        if (luckSlider != null)
+            fillImage = luckSlider.fillRect.GetComponent<Image>();
     }
 
     public void ModifyLuck(float amount)

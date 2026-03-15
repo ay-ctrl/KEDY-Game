@@ -3,10 +3,10 @@ using UnityEngine.SceneManagement;
 
 public class Elevator : MonoBehaviour
 {
-    public string levelMinus1 = "Level0";
-    public string level0 = "Level1";
-    public string level1 = "Level2";
-    public string level2 = "Level3";
+    public string floorMinus1 = "Level0";
+    public string floor0 = "Level1";
+    public string floor1 = "Level2";
+    public string floor2 = "Level3";
 
     public float luckThreshold = 0.8f;
 
@@ -33,19 +33,19 @@ public class Elevator : MonoBehaviour
         switch (floor)
         {
             case -1:
-                scene = levelMinus1;
+                scene = floorMinus1;
                 break;
 
             case 0:
-                scene = level0;
+                scene = floor0;
                 break;
 
             case 1:
-                scene = level1;
+                scene = floor1;
                 break;
 
             case 2:
-                scene = level2;
+                scene = floor2;
                 break;
         }
 
@@ -56,9 +56,9 @@ public class Elevator : MonoBehaviour
     {
         string[] possibleFloors =
         {
-            levelMinus1,
-            level0,
-            level1
+            floor0,
+            floor1,
+            floor2
         };
 
         int randomIndex = Random.Range(0, possibleFloors.Length);

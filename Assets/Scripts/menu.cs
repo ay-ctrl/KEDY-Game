@@ -4,7 +4,6 @@ public class NextScene : MonoBehaviour
 {
 
     public Animator elevatorAnimator;
-    public GameObject playButton;
     public void LoadNextScene()
     {
         SceneManager.LoadScene(SceneManager.GetActiveScene().buildIndex + 1);

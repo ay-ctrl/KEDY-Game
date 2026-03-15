@@ -8,7 +8,7 @@ public class Elevator : MonoBehaviour
     public string floor1 = "Level2";
     public string floor2 = "Level3";
 
-    public float luckThreshold = 0.8f;
+    public float luckThreshold = 80;
 
     public void PressFloor(int floor)
     {

@@ -3,57 +3,51 @@ using UnityEngine.SceneManagement;
 
 public class Elevator : MonoBehaviour
 {
-    public string floorMinus1 = "Level0";
-    public string floor0 = "Level1";
-    public string floor1 = "Level2";
-    public string floor2 = "Level3";
+    public string floorMinus1 = "Level0"; // -1 kat
+    public string floor0 = "Level1";      // 0 kat
+    public string floor1 = "Level2";      // 1 kat
+    public string floor2 = "Level3";      // 2 kat
 
-    public float luckThreshold = 80;
+    private float luckThreshold = 80;
 
     public void PressFloor(int floor)
     {
-        float luck = LuckBarManager.Instance.currentLuck; // 0-1 arası olduğunu varsayıyorum
+        float luck = LuckBarManager.Instance.currentLuck; // 0-100 arası varsayalım
+        Debug.Log(luck);
 
         if (luck >= luckThreshold)
         {
-            // Şans yüksek → doğru kata git
+            Debug.Log(luck);
+            // Şans yüksek → hangi kata basarsan o kat
             LoadCorrectFloor(floor);
+            Debug.Log(luck);
         }
         else
         {
-            // Şans düşük → rastgele kat ama 2 yok
-            LoadRandomFloor();
+            // Şans düşük → rastgele kat ama -1'e asla gitme
+            LoadRandomFloorExcludingMinus1();
         }
     }
 
     void LoadCorrectFloor(int floor)
     {
         string scene = "";
+        Debug.Log("correct");
 
         switch (floor)
         {
-            case -1:
-                scene = floorMinus1;
-                break;
-
-            case 0:
-                scene = floor0;
-                break;
-
-            case 1:
-                scene = floor1;
-                break;
-
-            case 2:
-                scene = floor2;
-                break;
+            case -1: scene = floorMinus1; break;
+            case 0: scene = floor0; break;
+            case 1: scene = floor1; break;
+            case 2: scene = floor2; break;
         }
 
         SceneManager.LoadScene(scene);
     }
 
-    void LoadRandomFloor()
+    void LoadRandomFloorExcludingMinus1()
     {
+        Debug.Log("aaaa");
         string[] possibleFloors =
         {
             floor0,
